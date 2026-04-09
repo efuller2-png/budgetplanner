@@ -4,26 +4,28 @@ import pandas as pd
 from datetime import datetime
 import database as db
 
+# ── Streamlit page config ─────────────────────────────────────────────────────
 st.set_page_config(page_title="Spending Tracker", page_icon="💳", layout="wide")
-
 st.title("💳 Spending Tracker")
 st.caption("Your personal finance dashboard")
 
 # ── Month selector ────────────────────────────────────────────────────────────
-today         = datetime.today()
-all_months    = [(today.year, m) for m in range(1, today.month + 1)]
-month_labels  = {(y, m): datetime(y, m, 1).strftime("%B %Y") for y, m in all_months}
-selected      = st.selectbox(
+today = datetime.today()
+all_months = [(today.year, m) for m in range(1, today.month + 1)]
+month_labels = {(y, m): datetime(y, m, 1).strftime("%B %Y") for y, m in all_months}
+
+selected = st.selectbox(
     "Select month",
     options=list(reversed(all_months)),
     format_func=lambda x: month_labels[x]
 )
 year, month = selected
 
-df_month  = db.get_transactions_by_month(year, month)
-df_cat    = db.get_category_summary(year, month)
-df_weekly = db.get_weekly_summary(year, month)
-df_monthly= db.get_monthly_summary()
+# ── Fetch data safely ─────────────────────────────────────────────────────────
+df_month   = db.get_transactions_by_month(year, month) or pd.DataFrame()
+df_cat     = db.get_category_summary(year, month) or pd.DataFrame()
+df_weekly  = db.get_weekly_summary(year, month) or pd.DataFrame()
+df_monthly = db.get_monthly_summary() or pd.DataFrame()
 
 st.divider()
 
@@ -35,19 +37,19 @@ largest   = df_month["amount"].max() if not df_month.empty else 0
 
 # delta vs prior month
 prior_months = [(y, m) for y, m in all_months if (y, m) < selected]
-delta_str    = None
+delta_str = None
 if prior_months:
-    py, pm    = prior_months[-1]
-    prior_df  = db.get_transactions_by_month(py, pm)
+    py, pm = prior_months[-1]
+    prior_df = db.get_transactions_by_month(py, pm) or pd.DataFrame()
     prior_tot = prior_df["amount"].sum() if not prior_df.empty else 0
     if prior_tot > 0:
-        pct       = ((total - prior_tot) / prior_tot) * 100
-        delta_str = f"{pct:+.1f}% vs {month_labels[(py,pm)]}"
+        pct = ((total - prior_tot) / prior_tot) * 100
+        delta_str = f"{pct:+.1f}% vs {month_labels[(py, pm)]}"
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total spent",      f"${total:,.2f}",  delta_str)
-c2.metric("Transactions",     str(count))
-c3.metric("Avg transaction",  f"${avg:,.2f}")
+c1.metric("Total spent", f"${total:,.2f}", delta_str)
+c2.metric("Transactions", str(count))
+c3.metric("Avg transaction", f"${avg:,.2f}")
 c4.metric("Largest purchase", f"${largest:,.2f}")
 
 st.divider()
