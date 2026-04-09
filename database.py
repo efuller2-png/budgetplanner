@@ -23,15 +23,24 @@ def get_conn():
 
 def get_all_transactions() -> pd.DataFrame:
     with get_conn() as conn:
-        return pd.read_sql("SELECT * FROM transactions ORDER BY date DESC;", conn)
+        return pd.read_sql(
+            "SELECT * FROM transactions ORDER BY date DESC;",
+            conn
+        )
 
 
 def get_transactions_by_month(year: int, month: int) -> pd.DataFrame:
     m = f"{year}-{month:02d}"
     with get_conn() as conn:
         return pd.read_sql(
-            "SELECT * FROM transactions WHERE SUBSTR(date,1,7)=? ORDER BY date DESC;",
-            conn, params=(m,)
+            """
+            SELECT * 
+            FROM transactions 
+            WHERE strftime('%Y-%m', date) = ?
+            ORDER BY date DESC;
+            """,
+            conn,
+            params=(m,)
         )
 
 
@@ -39,11 +48,12 @@ def get_monthly_summary() -> pd.DataFrame:
     with get_conn() as conn:
         return pd.read_sql("""
             SELECT
-                SUBSTR(date,1,7)        AS month,
-                COUNT(*)                AS transactions,
-                ROUND(SUM(amount),2)    AS total_spent
+                strftime('%Y-%m', date) AS month,
+                COUNT(*) AS transactions,
+                ROUND(SUM(amount),2) AS total_spent
             FROM transactions
-            GROUP BY month ORDER BY month;
+            GROUP BY month
+            ORDER BY month;
         """, conn)
 
 
@@ -53,11 +63,12 @@ def get_weekly_summary(year: int, month: int) -> pd.DataFrame:
         return pd.read_sql("""
             SELECT
                 week_id,
-                COUNT(*)                AS transactions,
-                ROUND(SUM(amount),2)    AS total_spent
+                COUNT(*) AS transactions,
+                ROUND(SUM(amount),2) AS total_spent
             FROM transactions
-            WHERE SUBSTR(date,1,7)=?
-            GROUP BY week_id ORDER BY week_id;
+            WHERE strftime('%Y-%m', date) = ?
+            GROUP BY week_id
+            ORDER BY week_id;
         """, conn, params=(m,))
 
 
@@ -67,11 +78,12 @@ def get_category_summary(year: int, month: int) -> pd.DataFrame:
         return pd.read_sql("""
             SELECT
                 category,
-                COUNT(*)                AS transactions,
-                ROUND(SUM(amount),2)    AS total_spent
+                COUNT(*) AS transactions,
+                ROUND(SUM(amount),2) AS total_spent
             FROM transactions
-            WHERE SUBSTR(date,1,7)=?
-            GROUP BY category ORDER BY total_spent DESC;
+            WHERE strftime('%Y-%m', date) = ?
+            GROUP BY category
+            ORDER BY total_spent DESC;
         """, conn, params=(m,))
 
 
@@ -105,14 +117,16 @@ def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
             SELECT
                 b.category,
                 b.weekly_limit,
-                ROUND(COALESCE(SUM(t.amount),0),2)                      AS total_spent,
-                ROUND(b.weekly_limit - COALESCE(SUM(t.amount),0),2)     AS remaining,
-                CASE WHEN COALESCE(SUM(t.amount),0) > b.weekly_limit
-                     THEN 1 ELSE 0 END                                   AS over_budget
+                ROUND(COALESCE(SUM(t.amount),0),2) AS total_spent,
+                ROUND(b.weekly_limit - COALESCE(SUM(t.amount),0),2) AS remaining,
+                CASE 
+                    WHEN COALESCE(SUM(t.amount),0) > b.weekly_limit THEN 1 
+                    ELSE 0 
+                END AS over_budget
             FROM budgets b
             LEFT JOIN transactions t
-                   ON t.category=b.category AND t.week_id=b.week_id
-            WHERE b.week_id=?
+                ON t.category = b.category AND t.week_id = b.week_id
+            WHERE b.week_id = ?
             GROUP BY b.category, b.weekly_limit
             ORDER BY total_spent DESC;
         """, conn, params=(week_id,))
@@ -134,6 +148,7 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
                 (category, week_id)
             )
             row = cur.fetchone()
+
             if row:
                 conn.execute(
                     "UPDATE budgets SET weekly_limit=? WHERE category=? AND week_id=?;",
@@ -144,6 +159,7 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
                     "INSERT INTO budgets (category, weekly_limit, week_id) VALUES (?,?,?);",
                     (category, weekly_limit, week_id)
                 )
+
             conn.commit()
         return True
     except Exception as e:
@@ -155,7 +171,10 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
 
 def get_all_accounts() -> pd.DataFrame:
     with get_conn() as conn:
-        return pd.read_sql("SELECT * FROM accounts ORDER BY account_name;", conn)
+        return pd.read_sql(
+            "SELECT * FROM accounts ORDER BY account_name;",
+            conn
+        )
 
 
 def get_account_names() -> list:
