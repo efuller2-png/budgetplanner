@@ -22,10 +22,11 @@ selected = st.selectbox(
 year, month = selected
 
 # ── Fetch data safely ─────────────────────────────────────────────────────────
-df_month   = db.get_transactions_by_month(year, month) or pd.DataFrame()
-df_cat     = db.get_category_summary(year, month) or pd.DataFrame()
-df_weekly  = db.get_weekly_summary(year, month) or pd.DataFrame()
-df_monthly = db.get_monthly_summary() or pd.DataFrame()
+# With these
+df_month  = db.get_transactions_by_month(year, month)
+df_cat    = db.get_category_summary(year, month)
+df_weekly = db.get_weekly_summary(year, month)
+df_monthly= db.get_monthly_summary()
 
 st.divider()
 
