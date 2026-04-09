@@ -25,10 +25,11 @@ year, month = selected
 
 # ── Fetch data safely ─────────────────────────────────────────────────────────
 # With these
-df_month  = db.get_transactions_by_month(year, month)
-df_cat    = db.get_category_summary(year, month)
-df_weekly = db.get_weekly_summary(year, month)
-df_monthly= db.get_monthly_summary()
+df_month["amount"] = pd.to_numeric(df_month["amount"], errors="coerce")
+total   = df_month["amount"].sum()  if not df_month.empty else 0
+count   = len(df_month)
+avg     = df_month["amount"].mean() if not df_month.empty else 0
+largest = df_month["amount"].max()  if not df_month.empty else 0
 
 st.divider()
 
