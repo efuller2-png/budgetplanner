@@ -4,6 +4,8 @@ import pandas as pd
 from datetime import datetime
 import database as db
 
+db.init_db()
+
 # ── Streamlit page config ─────────────────────────────────────────────────────
 st.set_page_config(page_title="Spending Tracker", page_icon="💳", layout="wide")
 st.title("💳 Spending Tracker")

@@ -23,7 +23,45 @@ def get_conn():
     except Exception as e:
         st.error(f"Failed to connect to DB: {e}")
         return None
-
+def init_db():
+    with get_conn() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_name TEXT NOT NULL,
+                account_type TEXT NOT NULL,
+                bank_name    TEXT,
+                created_at   TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS budgets (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                category     TEXT NOT NULL,
+                weekly_limit REAL NOT NULL,
+                week_id      TEXT NOT NULL,
+                created_at   TEXT DEFAULT (datetime('now'))
+            );
+            CREATE TABLE IF NOT EXISTS transactions (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                date                TEXT NOT NULL,
+                amount              REAL NOT NULL,
+                merchant_city       TEXT,
+                merchant_state      TEXT,
+                category            TEXT NOT NULL,
+                subcategory         TEXT,
+                payment_method      TEXT NOT NULL,
+                account_id          TEXT,
+                entry_source        TEXT DEFAULT 'bank_sync',
+                bank_transaction_id TEXT,
+                week_id             TEXT,
+                budget_category_id  INTEGER REFERENCES budgets(id),
+                note                TEXT,
+                receipt_image_url   TEXT,
+                created_at          TEXT DEFAULT (datetime('now')),
+                updated_at          TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        conn.commit()
+        
 # ── Initialize DB ─────────────────────────────────────────────────────────────
 def init_db():
     try:
