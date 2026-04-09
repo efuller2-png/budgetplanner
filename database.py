@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-import streamlit as st  # For error logging in Streamlit
+import streamlit as st
 
 # ── Database Path ─────────────────────────────────────────────────────────────
 DB_PATH = Path(__file__).parent / "spending_tracker.db"
@@ -12,7 +12,7 @@ CATEGORIES = [
     "Entertainment", "Shopping", "Utilities", "Other"
 ]
 PAYMENT_METHODS = ["Bank Card", "Credit Card", "Cash", "Other"]
-ACCOUNT_TYPES   = ["Checking", "Savings", "Credit Card", "Other"]
+ACCOUNT_TYPES = ["Checking", "Savings", "Credit Card", "Other"]
 
 # ── Helper: Connection ────────────────────────────────────────────────────────
 def get_conn():
@@ -24,8 +24,50 @@ def get_conn():
         st.error(f"Failed to connect to DB: {e}")
         return None
 
-# ── Transactions ──────────────────────────────────────────────────────────────
+# ── Initialize DB ─────────────────────────────────────────────────────────────
+def init_db():
+    try:
+        with get_conn() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_name TEXT NOT NULL UNIQUE,
+                    account_type TEXT,
+                    bank_name TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    merchant_city TEXT,
+                    merchant_state TEXT,
+                    category TEXT,
+                    payment_method TEXT,
+                    account_id INTEGER,
+                    entry_source TEXT,
+                    week_id TEXT,
+                    note TEXT,
+                    FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE SET NULL
+                );
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    weekly_limit REAL NOT NULL,
+                    week_id TEXT NOT NULL
+                );
+            """)
+            conn.commit()
+    except Exception as e:
+        st.error(f"Failed to initialize DB: {e}")
 
+# Initialize DB immediately
+init_db()
+
+# ── Transactions ──────────────────────────────────────────────────────────────
 def get_all_transactions() -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -36,8 +78,7 @@ def get_all_transactions() -> pd.DataFrame:
 
 def get_transactions_by_month(year: int, month: int) -> pd.DataFrame:
     try:
-        y_str = str(year)
-        m_str = f"{month:02d}"
+        y_str, m_str = str(year), f"{month:02d}"
         query = """
             SELECT *
             FROM transactions
@@ -107,7 +148,7 @@ def get_category_summary(year: int, month: int) -> pd.DataFrame:
 
 def insert_transaction(date, amount, category, payment_method,
                        merchant_city="", merchant_state="",
-                       account_id="", note="") -> bool:
+                       account_id=None, note="") -> bool:
     try:
         parsed  = datetime.strptime(date, "%Y-%m-%d")
         week_id = parsed.strftime("%Y-W%V")
@@ -127,7 +168,6 @@ def insert_transaction(date, amount, category, payment_method,
         return False
 
 # ── Budgets ───────────────────────────────────────────────────────────────────
-
 def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
     try:
         query = """
@@ -136,10 +176,7 @@ def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
                 b.weekly_limit,
                 ROUND(COALESCE(SUM(t.amount),0),2) AS total_spent,
                 ROUND(b.weekly_limit - COALESCE(SUM(t.amount),0),2) AS remaining,
-                CASE 
-                    WHEN COALESCE(SUM(t.amount),0) > b.weekly_limit THEN 1 
-                    ELSE 0 
-                END AS over_budget
+                CASE WHEN COALESCE(SUM(t.amount),0) > b.weekly_limit THEN 1 ELSE 0 END AS over_budget
             FROM budgets b
             LEFT JOIN transactions t
                 ON t.category = b.category AND t.week_id = b.week_id
@@ -182,7 +219,6 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
         return False
 
 # ── Accounts ──────────────────────────────────────────────────────────────────
-
 def get_all_accounts() -> pd.DataFrame:
     try:
         with get_conn() as conn:
