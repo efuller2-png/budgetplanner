@@ -69,7 +69,7 @@ st.subheader("Month-to-month spending")
 if df_monthly.empty:
     st.info("No data yet.")
 else:
-    df_monthly["month_label"] = pd.to_datetime(df_monthly["month"]).dt.strftime("%b %Y")
+    df_monthly["month_label"] = pd.to_datetime(df_monthly["month"], format="%Y-%m").dt.strftime("%b %Y")
     df_monthly["total_spent"] = pd.to_numeric(df_monthly["total_spent"], errors="coerce")
     fig = px.bar(
         df_monthly, x="month_label", y="total_spent",
