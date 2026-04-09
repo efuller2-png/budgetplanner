@@ -41,7 +41,7 @@ prior_months = [(y, m) for y, m in all_months if (y, m) < selected]
 delta_str = None
 if prior_months:
     py, pm = prior_months[-1]
-    prior_df = db.get_transactions_by_month(py, pm) or pd.DataFrame()
+    prior_df = db.get_transactions_by_month(py, pm)
     prior_tot = prior_df["amount"].sum() if not prior_df.empty else 0
     if prior_tot > 0:
         pct = ((total - prior_tot) / prior_tot) * 100
