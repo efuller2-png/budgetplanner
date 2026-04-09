@@ -92,7 +92,7 @@ with tab2:
     else:
         st.markdown(f"**{len(df)} transactions found**")
         for _, row in df.iterrows():
-            with st.expander(f"{row['date']} — {row['category']} — ${float(row['amount']):,.2f}"):
+            with st.expander(f"{row['date']} — {row['category']} — ${float(str(row['amount'])):,.2f}"):
                 col1, col2, col3 = st.columns(3)
                 col1.markdown(f"**City:** {row['merchant_city'] or '—'}")
                 col2.markdown(f"**State:** {row['merchant_state'] or '—'}")

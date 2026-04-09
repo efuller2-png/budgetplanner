@@ -33,10 +33,11 @@ df_monthly= db.get_monthly_summary()
 st.divider()
 
 # ── KPI metrics ───────────────────────────────────────────────────────────────
-total     = df_month["amount"].sum() if not df_month.empty else 0
-count     = len(df_month)
-avg       = df_month["amount"].mean() if not df_month.empty else 0
-largest   = df_month["amount"].max() if not df_month.empty else 0
+df_month["amount"] = pd.to_numeric(df_month["amount"], errors="coerce")
+total   = df_month["amount"].sum() if not df_month.empty else 0
+df_month["amount"] = pd.to_numeric(df_month["amount"], errors="coerce")
+avg     = df_month["amount"].mean() if not df_month.empty else 0
+largest = df_month["amount"].max() if not df_month.empty else 0
 
 # delta vs prior month
 prior_months = [(y, m) for y, m in all_months if (y, m) < selected]
