@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 import database as db
+import pandas as pd
 
 st.set_page_config(page_title="Log Cash", page_icon="💵", layout="wide")
 st.title("💵 Cash Transactions")
@@ -92,7 +93,7 @@ with tab2:
     else:
         st.markdown(f"**{len(df)} transactions found**")
         for _, row in df.iterrows():
-            with st.expander(f"{row['date']} — {row['category']} — ${float(str(row['amount'])):,.2f}"):
+            with st.expander(f"{row['date']} — {row['category']} — ${pd.to_numeric(row['amount'], errors='coerce') or 0:,.2f}"):
                 col1, col2, col3 = st.columns(3)
                 col1.markdown(f"**City:** {row['merchant_city'] or '—'}")
                 col2.markdown(f"**State:** {row['merchant_state'] or '—'}")
