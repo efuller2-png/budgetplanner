@@ -23,12 +23,12 @@ if not existing.empty:
 with st.form("budget_form"):
     cols       = st.columns(2)
     new_limits = {}
-    for i, cat in enumerate(db.CATEGORIES):
-        current       = limit_map.get(cat, 0.0)
-        new_limits[cat] = cols[i % 2].number_input(
-            cat, min_value=0.0, value=float(current),
-            step=5.0, format="%.2f", key=f"budget_{cat}"
-        )
+    for _, row in df.iterrows():
+        cat       = row["category"]
+        limit     = float(str(row["weekly_limit"])) if row["weekly_limit"] is not None else 0.0
+        spent     = float(str(row["total_spent"])) if row["total_spent"] is not None else 0.0
+        remaining = float(str(row["remaining"])) if row["remaining"] is not None else 0.0
+        over      = row["over_budget"]
     save = st.form_submit_button("Save budgets")
 
 if save:
