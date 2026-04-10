@@ -143,7 +143,7 @@ with tab2:
                                 st.error("Amount must be greater than $0.")
                             else:
                                 ok = db.update_transaction(
-                                    transaction_id=int(row["id"]),
+                                    transaction_id=int(str(row["id"])),
                                     date=str(row["date"]),
                                     amount=round(new_amount, 2),
                                     category=new_cat,
@@ -171,7 +171,7 @@ with tab2:
                         type="primary",
                         disabled=not confirm
                     ):
-                        ok = db.delete_transaction(int(row["id"]))
+                        ok = db.delete_transaction(int(str(row["id"])))
                         if ok:
                             st.success("Deleted.")
                             st.rerun()
