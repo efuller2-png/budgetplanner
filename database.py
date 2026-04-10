@@ -2,19 +2,19 @@ import streamlit as st
 import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor
-
+ 
 CATEGORIES = [
     "Groceries", "Dining", "Transport", "Health",
     "Entertainment", "Shopping", "Utilities", "Other"
 ]
 PAYMENT_METHODS = ["Bank Card", "Credit Card", "Cash", "Other"]
 ACCOUNT_TYPES   = ["Checking", "Savings", "Credit Card", "Other"]
-
-
+ 
+ 
 def get_conn():
     return psycopg2.connect(st.secrets["DB_URL"], cursor_factory=RealDictCursor)
-
-
+ 
+ 
 def init_db():
     try:
         with get_conn() as conn:
@@ -37,7 +37,7 @@ def init_db():
                     );
                     CREATE TABLE IF NOT EXISTS transactions (
                         id                  SERIAL PRIMARY KEY,
-                        date                DATE         NOT NULL,
+                        date                DATE          NOT NULL,
                         amount              DECIMAL(10,2) NOT NULL CHECK (amount > 0),
                         merchant_city       VARCHAR(100),
                         merchant_state      CHAR(2),
@@ -67,38 +67,55 @@ def init_db():
                 conn.commit()
     except Exception as e:
         print(f"init_db error: {e}")
-
-
+ 
+ 
 # ── Transactions — Read ───────────────────────────────────────────────────────
-
+ 
 def get_transactions_by_month(year: int, month: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
-                SELECT * FROM transactions
-                WHERE EXTRACT(YEAR FROM date) = %s
+                SELECT id, date, amount::float, merchant_city, merchant_state,
+                       category, subcategory, payment_method, account_id,
+                       entry_source, bank_transaction_id, week_id,
+                       budget_category_id, note, receipt_image_url,
+                       created_at, updated_at
+                FROM transactions
+                WHERE EXTRACT(YEAR  FROM date) = %s
                 AND   EXTRACT(MONTH FROM date) = %s
                 ORDER BY date DESC;
             """, conn, params=(year, month))
     except Exception as e:
         print(f"get_transactions_by_month error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_all_transactions() -> pd.DataFrame:
     try:
         with get_conn() as conn:
-            return pd.read_sql(
-                "SELECT * FROM transactions ORDER BY date DESC;", conn
-            )
+            return pd.read_sql("""
+                SELECT id, date, amount::float, merchant_city, merchant_state,
+                       category, subcategory, payment_method, account_id,
+                       entry_source, bank_transaction_id, week_id,
+                       budget_category_id, note, receipt_image_url,
+                       created_at, updated_at
+                FROM transactions ORDER BY date DESC;
+            """, conn)
     except Exception as e:
         print(f"get_all_transactions error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def search_transactions(search_term: str = "", category: str = "") -> pd.DataFrame:
     try:
-        query  = "SELECT * FROM transactions WHERE 1=1"
+        query  = """
+            SELECT id, date, amount::float, merchant_city, merchant_state,
+                   category, subcategory, payment_method, account_id,
+                   entry_source, bank_transaction_id, week_id,
+                   budget_category_id, note, receipt_image_url,
+                   created_at, updated_at
+            FROM transactions WHERE 1=1
+        """
         params = []
         if search_term:
             query += " AND (merchant_city ILIKE %s OR note ILIKE %s)"
@@ -112,64 +129,64 @@ def search_transactions(search_term: str = "", category: str = "") -> pd.DataFra
     except Exception as e:
         print(f"search_transactions error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 # ── Transactions — Aggregates ─────────────────────────────────────────────────
-
+ 
 def get_monthly_summary() -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
                 SELECT
-                    TO_CHAR(date, 'YYYY-MM')         AS month,
-                    COUNT(*)                         AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
+                    TO_CHAR(date, 'YYYY-MM')          AS month,
+                    COUNT(*)                          AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)::float AS total_spent
                 FROM transactions
                 GROUP BY month ORDER BY month;
             """, conn)
     except Exception as e:
         print(f"get_monthly_summary error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_weekly_summary(year: int, month: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
                 SELECT
                     week_id,
-                    COUNT(*)                         AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
+                    COUNT(*)                          AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)::float AS total_spent
                 FROM transactions
-                WHERE EXTRACT(YEAR FROM date) = %s
+                WHERE EXTRACT(YEAR  FROM date) = %s
                 AND   EXTRACT(MONTH FROM date) = %s
                 GROUP BY week_id ORDER BY week_id;
             """, conn, params=(year, month))
     except Exception as e:
         print(f"get_weekly_summary error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_category_summary(year: int, month: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
                 SELECT
                     category,
-                    COUNT(*)                         AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
+                    COUNT(*)                          AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)::float AS total_spent
                 FROM transactions
-                WHERE EXTRACT(YEAR FROM date) = %s
+                WHERE EXTRACT(YEAR  FROM date) = %s
                 AND   EXTRACT(MONTH FROM date) = %s
                 GROUP BY category ORDER BY total_spent DESC;
             """, conn, params=(year, month))
     except Exception as e:
         print(f"get_category_summary error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 # ── Transactions — Write ──────────────────────────────────────────────────────
-
+ 
 def insert_transaction(date, amount, category, payment_method,
                        merchant_city="", merchant_state="",
                        account_id="", note="") -> bool:
@@ -192,8 +209,8 @@ def insert_transaction(date, amount, category, payment_method,
     except Exception as e:
         print(f"insert_transaction error: {e}")
         return False
-
-
+ 
+ 
 def update_transaction(transaction_id: int, date, amount, category,
                        payment_method, merchant_city="",
                        merchant_state="", note="") -> bool:
@@ -218,8 +235,8 @@ def update_transaction(transaction_id: int, date, amount, category,
     except Exception as e:
         print(f"update_transaction error: {e}")
         return False
-
-
+ 
+ 
 def delete_transaction(transaction_id: int) -> bool:
     try:
         with get_conn() as conn:
@@ -233,10 +250,10 @@ def delete_transaction(transaction_id: int) -> bool:
     except Exception as e:
         print(f"delete_transaction error: {e}")
         return False
-
-
+ 
+ 
 # ── Tags ──────────────────────────────────────────────────────────────────────
-
+ 
 def get_all_tags() -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -244,13 +261,13 @@ def get_all_tags() -> pd.DataFrame:
     except Exception as e:
         print(f"get_all_tags error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_tag_names() -> list:
     df = get_all_tags()
     return df["name"].tolist() if not df.empty else []
-
-
+ 
+ 
 def insert_tag(name: str) -> bool:
     try:
         with get_conn() as conn:
@@ -264,8 +281,8 @@ def insert_tag(name: str) -> bool:
     except Exception as e:
         print(f"insert_tag error: {e}")
         return False
-
-
+ 
+ 
 def delete_tag(tag_id: int) -> bool:
     try:
         with get_conn() as conn:
@@ -276,8 +293,8 @@ def delete_tag(tag_id: int) -> bool:
     except Exception as e:
         print(f"delete_tag error: {e}")
         return False
-
-
+ 
+ 
 def add_tag_to_transaction(transaction_id: int, tag_id: int) -> bool:
     try:
         with get_conn() as conn:
@@ -291,8 +308,8 @@ def add_tag_to_transaction(transaction_id: int, tag_id: int) -> bool:
     except Exception as e:
         print(f"add_tag_to_transaction error: {e}")
         return False
-
-
+ 
+ 
 def get_tags_for_transaction(transaction_id: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -306,8 +323,8 @@ def get_tags_for_transaction(transaction_id: int) -> pd.DataFrame:
     except Exception as e:
         print(f"get_tags_for_transaction error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_transactions_by_tag(tag_name: str) -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -322,10 +339,10 @@ def get_transactions_by_tag(tag_name: str) -> pd.DataFrame:
     except Exception as e:
         print(f"get_transactions_by_tag error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 # ── Budgets ───────────────────────────────────────────────────────────────────
-
+ 
 def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -347,8 +364,8 @@ def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
     except Exception as e:
         print(f"get_budget_vs_actual error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_all_budget_weeks() -> list:
     try:
         with get_conn() as conn:
@@ -360,8 +377,8 @@ def get_all_budget_weeks() -> list:
     except Exception as e:
         print(f"get_all_budget_weeks error: {e}")
         return []
-
-
+ 
+ 
 def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
     try:
         with get_conn() as conn:
@@ -377,10 +394,10 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
     except Exception as e:
         print(f"upsert_budget error: {e}")
         return False
-
-
+ 
+ 
 # ── Accounts ──────────────────────────────────────────────────────────────────
-
+ 
 def get_all_accounts() -> pd.DataFrame:
     try:
         with get_conn() as conn:
@@ -390,13 +407,13 @@ def get_all_accounts() -> pd.DataFrame:
     except Exception as e:
         print(f"get_all_accounts error: {e}")
         return pd.DataFrame()
-
-
+ 
+ 
 def get_account_names() -> list:
     df = get_all_accounts()
     return df["account_name"].tolist() if not df.empty else []
-
-
+ 
+ 
 def insert_account(account_name: str, account_type: str,
                    bank_name: str = "") -> bool:
     try:
@@ -411,8 +428,8 @@ def insert_account(account_name: str, account_type: str,
     except Exception as e:
         print(f"insert_account error: {e}")
         return False
-
-
+ 
+ 
 def delete_account(account_id: int) -> bool:
     try:
         with get_conn() as conn:
@@ -425,8 +442,8 @@ def delete_account(account_id: int) -> bool:
     except Exception as e:
         print(f"delete_account error: {e}")
         return False
-
-
+ 
+ 
 def update_account(account_id: int, account_name: str,
                    account_type: str, bank_name: str) -> bool:
     try:
