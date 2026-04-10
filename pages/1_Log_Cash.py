@@ -67,11 +67,11 @@ with tab1:
     tags_df = db.get_all_tags()
     if not tags_df.empty:
         st.markdown("**Existing tags:**")
-        for _, row in tags_df.iterrows():
+        for i, row in tags_df.iterrows():
             c1, c2 = st.columns([4, 1])
             c1.markdown(row["name"])
-            if c2.button("Remove", key=f"deltag_{row['id']}"):
-                db.delete_tag(int(row["id"]))
+            if c2.button("Remove", key=f"deltag_{i}"):
+                db.delete_tag(int(str(row["id"])))
                 st.rerun()
 
 with tab2:
@@ -93,6 +93,7 @@ with tab2:
 
         for idx, row in df.iterrows():
             amount_val = max(float(row["amount"]) if pd.notna(row["amount"]) else 0.01, 0.01)
+            row_id     = int(str(row["id"]))
 
             with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
                 col1, col2, col3 = st.columns(3)
@@ -143,7 +144,7 @@ with tab2:
                                 st.error("Amount must be greater than $0.")
                             else:
                                 ok = db.update_transaction(
-                                    transaction_id=int(str(row["id"])),
+                                    transaction_id=row_id,
                                     date=str(row["date"]),
                                     amount=round(new_amount, 2),
                                     category=new_cat,
@@ -171,7 +172,7 @@ with tab2:
                         type="primary",
                         disabled=not confirm
                     ):
-                        ok = db.delete_transaction(int(str(row["id"])))
+                        ok = db.delete_transaction(row_id)
                         if ok:
                             st.success("Deleted.")
                             st.rerun()
