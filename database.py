@@ -86,14 +86,20 @@ def get_transactions_by_month(year: int, month: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
-                SELECT * FROM transactions
-                WHERE EXTRACT(YEAR FROM date) = %s
-                AND   EXTRACT(MONTH FROM date) = %s
-                ORDER BY date DESC;
-            """, conn, params=(year, month))
-    except Exception as e:
-        print(f"get_transactions_by_month error: {e}")
-        return pd.DataFrame()
+    SELECT
+        b.category,
+        b.weekly_limit::float,
+        ROUND(COALESCE(SUM(t.amount), 0)::numeric, 2)::float                    AS total_spent,
+        ROUND((b.weekly_limit - COALESCE(SUM(t.amount), 0))::numeric, 2)::float AS remaining,
+        CASE WHEN COALESCE(SUM(t.amount), 0) > b.weekly_limit
+             THEN true ELSE false END                                             AS over_budget
+    FROM budgets b
+    LEFT JOIN transactions t
+           ON t.category = b.category AND t.week_id = b.week_id
+    WHERE b.week_id = %s
+    GROUP BY b.category, b.weekly_limit
+    ORDER BY total_spent DESC;
+""", conn, params=(week_id,))
 
 
 def get_all_transactions() -> pd.DataFrame:
