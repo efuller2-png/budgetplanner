@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import database as db
+import pandas as pd
  
 st.set_page_config(page_title="Budget Manager", page_icon="📊", layout="wide")
 st.title("📊 Budget Manager")
