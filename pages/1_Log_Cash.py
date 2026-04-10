@@ -105,7 +105,7 @@ with tab2:
                 edit_col, del_col = st.columns(2)
 
                 with edit_col:
-                    with st.form(f"edit_{row['id']}"):
+                    with st.form(f"edit_txn_{row['id']}_{_}"):
                         st.markdown("**Edit transaction**")
                         new_amount = st.number_input(
                             "Amount ($)",
