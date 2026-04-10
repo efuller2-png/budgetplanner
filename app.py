@@ -32,16 +32,16 @@ st.divider()
  
 # ── KPI metrics ───────────────────────────────────────────────────────────────
 if not df_month.empty and "amount" in df_month.columns:
-    df_month["amount"] = pd.to_numeric(df_month["amount"], errors="coerce")
+    df_month["amount"] = df_month["amount"].apply(lambda x: float(str(x)) if x is not None else 0.0)
     total   = df_month["amount"].sum()
     count   = len(df_month)
-    avg     = df_month["amount"].mean()
-    largest = df_month["amount"].max()
+    avg     = df_month["amount"].mean() if count > 0 else 0.0
+    largest = df_month["amount"].max() if count > 0 else 0.0
 else:
-    total   = 0
+    total   = 0.0
     count   = 0
-    avg     = 0
-    largest = 0
+    avg     = 0.0
+    largest = 0.0
  
 # delta vs prior month
 prior_months = [(y, m) for y, m in all_months if (y, m) < selected]
