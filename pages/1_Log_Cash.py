@@ -9,27 +9,21 @@ st.caption("Log cash purchases and manage all your transactions.")
 
 tab1, tab2 = st.tabs(["Log a cash purchase", "View & manage transactions"])
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Log new cash purchase
-# ═════════════════════════════════════════════════════════════════════════════
 with tab1:
     with st.form("cash_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        amount         = col1.number_input("Amount ($) *", min_value=0.01, step=0.01, format="%.2f")
-        category       = col2.selectbox("Category *", db.CATEGORIES)
-        txn_date       = col1.date_input("Date *", value=date.today(), max_value=date.today())
-        payment_method = col2.selectbox("Payment method *", db.PAYMENT_METHODS)
-        merchant_city  = col1.text_input("City", placeholder="e.g. Spokane")
-        merchant_state = col2.text_input("State", placeholder="e.g. WA", max_chars=2)
-
-        accounts   = db.get_account_names()
-        account_id = st.selectbox("Account (optional)", ["— none —"] + accounts)
-
+        col1, col2    = st.columns(2)
+        amount        = col1.number_input("Amount ($) *", min_value=0.01, step=0.01, format="%.2f")
+        category      = col2.selectbox("Category *", db.CATEGORIES)
+        txn_date      = col1.date_input("Date *", value=date.today(), max_value=date.today())
+        payment_method= col2.selectbox("Payment method *", db.PAYMENT_METHODS)
+        merchant_city = col1.text_input("City", placeholder="e.g. Spokane")
+        merchant_state= col2.text_input("State", placeholder="e.g. WA", max_chars=2)
+        accounts      = db.get_account_names()
+        account_id    = st.selectbox("Account (optional)", ["— none —"] + accounts)
         tag_names     = db.get_tag_names()
         selected_tags = st.multiselect("Tags (optional)", tag_names)
-
-        note      = st.text_area("Note (optional)", placeholder="What was this for?")
-        submitted = st.form_submit_button("Save transaction")
+        note          = st.text_area("Note (optional)", placeholder="What was this for?")
+        submitted     = st.form_submit_button("Save transaction")
 
     if submitted:
         errors = []
@@ -43,10 +37,14 @@ with tab1:
         else:
             acc = "" if account_id == "— none —" else account_id
             ok  = db.insert_transaction(
-                date=txn_date.strftime("%Y-%m-%d"), amount=round(amount, 2),
-                category=category, payment_method=payment_method,
-                merchant_city=merchant_city, merchant_state=merchant_state.upper(),
-                account_id=acc, note=note,
+                date=txn_date.strftime("%Y-%m-%d"),
+                amount=round(amount, 2),
+                category=category,
+                payment_method=payment_method,
+                merchant_city=merchant_city,
+                merchant_state=merchant_state.upper(),
+                account_id=acc,
+                note=note,
             )
             if ok:
                 st.success(f"✅ ${amount:,.2f} in {category} saved!")
@@ -76,12 +74,9 @@ with tab1:
                 db.delete_tag(int(row["id"]))
                 st.rerun()
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAB 2 — View, search, edit, delete
-# ═════════════════════════════════════════════════════════════════════════════
 with tab2:
     st.subheader("Search & filter")
-    col1, col2 = st.columns(2)
+    col1, col2  = st.columns(2)
     search_term = col1.text_input("Search by city or note", placeholder="e.g. Spokane")
     filter_cat  = col2.selectbox("Filter by category", ["All"] + db.CATEGORIES)
 
@@ -95,8 +90,11 @@ with tab2:
             df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
 
         st.markdown(f"**{len(df)} transactions found**")
+
         for _, row in df.iterrows():
-            amount_val = float(row["amount"]) if pd.notna(row["amount"]) else 0.0
+            amount_val = float(row["amount"]) if pd.notna(row["amount"]) else 0.01
+            amount_val = max(amount_val, 0.01)
+
             with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
                 col1, col2, col3 = st.columns(3)
                 col1.markdown(f"**City:** {row['merchant_city'] or '—'}")
@@ -110,28 +108,35 @@ with tab2:
                     with st.form(f"edit_{row['id']}"):
                         st.markdown("**Edit transaction**")
                         new_amount = st.number_input(
-                            "Amount ($)", value=amount_val,
-                            min_value=0.01, step=0.01, format="%.2f",
+                            "Amount ($)",
+                            value=amount_val,
+                            min_value=0.01,
+                            step=0.01,
+                            format="%.2f",
                             key=f"amt_{row['id']}"
                         )
                         new_cat = st.selectbox(
-                            "Category", db.CATEGORIES,
+                            "Category",
+                            db.CATEGORIES,
                             index=db.CATEGORIES.index(row["category"])
                             if row["category"] in db.CATEGORIES else 0,
                             key=f"cat_{row['id']}"
                         )
                         new_payment = st.selectbox(
-                            "Payment method", db.PAYMENT_METHODS,
+                            "Payment method",
+                            db.PAYMENT_METHODS,
                             index=db.PAYMENT_METHODS.index(row["payment_method"])
                             if row["payment_method"] in db.PAYMENT_METHODS else 0,
                             key=f"pay_{row['id']}"
                         )
                         new_city = st.text_input(
-                            "City", value=row["merchant_city"] or "",
+                            "City",
+                            value=row["merchant_city"] or "",
                             key=f"city_{row['id']}"
                         )
                         new_note = st.text_area(
-                            "Note", value=row["note"] or "",
+                            "Note",
+                            value=row["note"] or "",
                             key=f"note_{row['id']}"
                         )
                         if st.form_submit_button("Save changes"):
@@ -162,8 +167,10 @@ with tab2:
                         key=f"confirm_{row['id']}"
                     )
                     if st.button(
-                        "Delete", key=f"del_{row['id']}",
-                        type="primary", disabled=not confirm
+                        "Delete",
+                        key=f"del_{row['id']}",
+                        type="primary",
+                        disabled=not confirm
                     ):
                         ok = db.delete_transaction(int(row["id"]))
                         if ok:
