@@ -11,95 +11,78 @@ PAYMENT_METHODS = ["Bank Card", "Credit Card", "Cash", "Other"]
 ACCOUNT_TYPES   = ["Checking", "Savings", "Credit Card", "Other"]
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# CONNECTION
-# ═════════════════════════════════════════════════════════════════════════════
-
 def get_conn():
     return psycopg2.connect(st.secrets["DB_URL"], cursor_factory=RealDictCursor)
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# INITIALIZE DATABASE — creates all tables if they don't exist
-# ═════════════════════════════════════════════════════════════════════════════
-
 def init_db():
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS accounts (
-                    id           SERIAL PRIMARY KEY,
-                    account_name VARCHAR(255) NOT NULL,
-                    account_type VARCHAR(50)  NOT NULL,
-                    bank_name    VARCHAR(255),
-                    created_at   TIMESTAMP    DEFAULT NOW()
-                );
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS accounts (
+                        id           SERIAL PRIMARY KEY,
+                        account_name VARCHAR(255) NOT NULL,
+                        account_type VARCHAR(50)  NOT NULL,
+                        bank_name    VARCHAR(255),
+                        created_at   TIMESTAMP    DEFAULT NOW()
+                    );
+                    CREATE TABLE IF NOT EXISTS budgets (
+                        id           SERIAL PRIMARY KEY,
+                        category     VARCHAR(100) NOT NULL,
+                        weekly_limit DECIMAL(10,2) NOT NULL,
+                        week_id      VARCHAR(10)  NOT NULL,
+                        UNIQUE (category, week_id),
+                        created_at   TIMESTAMP    DEFAULT NOW()
+                    );
+                    CREATE TABLE IF NOT EXISTS transactions (
+                        id                  SERIAL PRIMARY KEY,
+                        date                DATE         NOT NULL,
+                        amount              DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+                        merchant_city       VARCHAR(100),
+                        merchant_state      CHAR(2),
+                        category            VARCHAR(100) NOT NULL,
+                        subcategory         VARCHAR(100),
+                        payment_method      VARCHAR(50)  NOT NULL,
+                        account_id          VARCHAR(100),
+                        entry_source        VARCHAR(20)  DEFAULT 'bank_sync',
+                        bank_transaction_id VARCHAR(255),
+                        week_id             VARCHAR(10),
+                        budget_category_id  INTEGER      REFERENCES budgets(id),
+                        note                TEXT,
+                        receipt_image_url   VARCHAR(500),
+                        created_at          TIMESTAMP    DEFAULT NOW(),
+                        updated_at          TIMESTAMP    DEFAULT NOW()
+                    );
+                    CREATE TABLE IF NOT EXISTS tags (
+                        id   SERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL UNIQUE
+                    );
+                    CREATE TABLE IF NOT EXISTS transaction_tags (
+                        transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+                        tag_id         INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+                        PRIMARY KEY (transaction_id, tag_id)
+                    );
+                """)
+                conn.commit()
+    except Exception as e:
+        print(f"init_db error: {e}")
 
-                CREATE TABLE IF NOT EXISTS budgets (
-                    id           SERIAL PRIMARY KEY,
-                    category     VARCHAR(100) NOT NULL,
-                    weekly_limit DECIMAL(10,2) NOT NULL,
-                    week_id      VARCHAR(10)  NOT NULL,
-                    UNIQUE (category, week_id),
-                    created_at   TIMESTAMP    DEFAULT NOW()
-                );
 
-                CREATE TABLE IF NOT EXISTS transactions (
-                    id                  SERIAL PRIMARY KEY,
-                    date                DATE         NOT NULL,
-                    amount              DECIMAL(10,2) NOT NULL CHECK (amount > 0),
-                    merchant_city       VARCHAR(100),
-                    merchant_state      CHAR(2),
-                    category            VARCHAR(100) NOT NULL,
-                    subcategory         VARCHAR(100),
-                    payment_method      VARCHAR(50)  NOT NULL,
-                    account_id          VARCHAR(100),
-                    entry_source        VARCHAR(20)  DEFAULT 'bank_sync',
-                    bank_transaction_id VARCHAR(255),
-                    week_id             VARCHAR(10),
-                    budget_category_id  INTEGER      REFERENCES budgets(id),
-                    note                TEXT,
-                    receipt_image_url   VARCHAR(500),
-                    created_at          TIMESTAMP    DEFAULT NOW(),
-                    updated_at          TIMESTAMP    DEFAULT NOW()
-                );
-
-                CREATE TABLE IF NOT EXISTS tags (
-                    id   SERIAL PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL UNIQUE
-                );
-
-                CREATE TABLE IF NOT EXISTS transaction_tags (
-                    transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
-                    tag_id         INTEGER REFERENCES tags(id) ON DELETE CASCADE,
-                    PRIMARY KEY (transaction_id, tag_id)
-                );
-            """)
-            conn.commit()
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS — READ
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Transactions — Read ───────────────────────────────────────────────────────
 
 def get_transactions_by_month(year: int, month: int) -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
-    SELECT
-        b.category,
-        b.weekly_limit::float,
-        ROUND(COALESCE(SUM(t.amount), 0)::numeric, 2)::float                    AS total_spent,
-        ROUND((b.weekly_limit - COALESCE(SUM(t.amount), 0))::numeric, 2)::float AS remaining,
-        CASE WHEN COALESCE(SUM(t.amount), 0) > b.weekly_limit
-             THEN true ELSE false END                                             AS over_budget
-    FROM budgets b
-    LEFT JOIN transactions t
-           ON t.category = b.category AND t.week_id = b.week_id
-    WHERE b.week_id = %s
-    GROUP BY b.category, b.weekly_limit
-    ORDER BY total_spent DESC;
-""", conn, params=(week_id,))
+                SELECT * FROM transactions
+                WHERE EXTRACT(YEAR FROM date) = %s
+                AND   EXTRACT(MONTH FROM date) = %s
+                ORDER BY date DESC;
+            """, conn, params=(year, month))
+    except Exception as e:
+        print(f"get_transactions_by_month error: {e}")
+        return pd.DataFrame()
 
 
 def get_all_transactions() -> pd.DataFrame:
@@ -131,18 +114,16 @@ def search_transactions(search_term: str = "", category: str = "") -> pd.DataFra
         return pd.DataFrame()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS — AGGREGATES
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Transactions — Aggregates ─────────────────────────────────────────────────
 
 def get_monthly_summary() -> pd.DataFrame:
     try:
         with get_conn() as conn:
             return pd.read_sql("""
                 SELECT
-                    TO_CHAR(date, 'YYYY-MM')        AS month,
-                    COUNT(*)                        AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)  AS total_spent
+                    TO_CHAR(date, 'YYYY-MM')         AS month,
+                    COUNT(*)                         AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
                 FROM transactions
                 GROUP BY month ORDER BY month;
             """, conn)
@@ -157,8 +138,8 @@ def get_weekly_summary(year: int, month: int) -> pd.DataFrame:
             return pd.read_sql("""
                 SELECT
                     week_id,
-                    COUNT(*)                        AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)  AS total_spent
+                    COUNT(*)                         AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
                 FROM transactions
                 WHERE EXTRACT(YEAR FROM date) = %s
                 AND   EXTRACT(MONTH FROM date) = %s
@@ -175,8 +156,8 @@ def get_category_summary(year: int, month: int) -> pd.DataFrame:
             return pd.read_sql("""
                 SELECT
                     category,
-                    COUNT(*)                        AS transactions,
-                    ROUND(SUM(amount)::numeric, 2)  AS total_spent
+                    COUNT(*)                         AS transactions,
+                    ROUND(SUM(amount)::numeric, 2)   AS total_spent
                 FROM transactions
                 WHERE EXTRACT(YEAR FROM date) = %s
                 AND   EXTRACT(MONTH FROM date) = %s
@@ -187,9 +168,7 @@ def get_category_summary(year: int, month: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TRANSACTIONS — WRITE
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Transactions — Write ──────────────────────────────────────────────────────
 
 def insert_transaction(date, amount, category, payment_method,
                        merchant_city="", merchant_state="",
@@ -256,9 +235,7 @@ def delete_transaction(transaction_id: int) -> bool:
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# TAGS — many-to-many with transactions
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Tags ──────────────────────────────────────────────────────────────────────
 
 def get_all_tags() -> pd.DataFrame:
     try:
@@ -347,9 +324,7 @@ def get_transactions_by_tag(tag_name: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# BUDGETS
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Budgets ───────────────────────────────────────────────────────────────────
 
 def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
     try:
@@ -357,11 +332,11 @@ def get_budget_vs_actual(week_id: str) -> pd.DataFrame:
             return pd.read_sql("""
                 SELECT
                     b.category,
-                    b.weekly_limit,
-                    ROUND(COALESCE(SUM(t.amount), 0)::numeric, 2)                    AS total_spent,
-                    ROUND((b.weekly_limit - COALESCE(SUM(t.amount), 0))::numeric, 2) AS remaining,
+                    b.weekly_limit::float,
+                    ROUND(COALESCE(SUM(t.amount), 0)::numeric, 2)::float                    AS total_spent,
+                    ROUND((b.weekly_limit - COALESCE(SUM(t.amount), 0))::numeric, 2)::float AS remaining,
                     CASE WHEN COALESCE(SUM(t.amount), 0) > b.weekly_limit
-                         THEN true ELSE false END                                     AS over_budget
+                         THEN true ELSE false END                                            AS over_budget
                 FROM budgets b
                 LEFT JOIN transactions t
                        ON t.category = b.category AND t.week_id = b.week_id
@@ -404,9 +379,7 @@ def upsert_budget(category: str, weekly_limit: float, week_id: str) -> bool:
         return False
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-# ACCOUNTS
-# ═════════════════════════════════════════════════════════════════════════════
+# ── Accounts ──────────────────────────────────────────────────────────────────
 
 def get_all_accounts() -> pd.DataFrame:
     try:
