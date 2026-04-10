@@ -65,28 +65,17 @@ c4.metric("Largest purchase", f"${largest:,.2f}")
 st.divider()
  
 # ── Month-to-month bar chart ──────────────────────────────────────────────────
-st.subheader("Month-to-month spending")
 if df_monthly.empty:
     st.info("No data yet.")
 else:
-    df_monthly["month_label"] = pd.to_datetime(df_monthly["month"], format="%Y-%m").dt.strftime("%b %Y")
+    def fmt_month(m):
+        try:
+            return datetime.strptime(str(m)[:7], "%Y-%m").strftime("%b %Y")
+        except:
+            return str(m)
+    df_monthly["month_label"] = df_monthly["month"].apply(fmt_month)
     df_monthly["total_spent"] = pd.to_numeric(df_monthly["total_spent"], errors="coerce")
-    fig = px.bar(
-        df_monthly, x="month_label", y="total_spent",
-        labels={"month_label": "", "total_spent": "Total spent ($)"},
-        color_discrete_sequence=["#378ADD"]
-    )
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(t=10, b=10, l=0, r=0), height=280,
-        yaxis=dict(tickprefix="$", gridcolor="rgba(128,128,128,0.15)"),
-        xaxis=dict(showgrid=False), bargap=0.35
-    )
-    fig.update_traces(marker_line_width=0)
-    st.plotly_chart(fig, use_container_width=True)
- 
-st.divider()
- 
+    
 # ── Spending trend line chart ─────────────────────────────────────────────────
 st.subheader("Spending trend")
 if df_monthly.empty:
