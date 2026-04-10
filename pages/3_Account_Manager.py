@@ -11,35 +11,39 @@ df = db.get_all_accounts()
 if df.empty:
     st.info("No accounts added yet. Add one below.")
 else:
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         with st.expander(f"{row['account_name']} — {row['account_type']} — {row['bank_name'] or '—'}"):
             col1, col2 = st.columns(2)
 
-            # ── Edit ──────────────────────────────────────────────────────
             with col1:
-                with st.form(f"edit_acc_{row['id']}"):
+                with st.form(f"edit_acc_{idx}"):
                     st.markdown("**Edit account**")
                     new_name = st.text_input(
-                        "Account name", value=row["account_name"],
-                        key=f"name_{row['id']}"
+                        "Account name",
+                        value=row["account_name"],
+                        key=f"name_{idx}"
                     )
                     new_type = st.selectbox(
-                        "Account type", db.ACCOUNT_TYPES,
+                        "Account type",
+                        db.ACCOUNT_TYPES,
                         index=db.ACCOUNT_TYPES.index(row["account_type"])
                         if row["account_type"] in db.ACCOUNT_TYPES else 0,
-                        key=f"type_{row['id']}"
+                        key=f"type_{idx}"
                     )
                     new_bank = st.text_input(
-                        "Bank name", value=row["bank_name"] or "",
-                        key=f"bank_{row['id']}"
+                        "Bank name",
+                        value=row["bank_name"] or "",
+                        key=f"bank_{idx}"
                     )
                     if st.form_submit_button("Save changes"):
                         if not new_name.strip():
                             st.error("Account name is required.")
                         else:
                             ok = db.update_account(
-                                int(row["id"]), new_name.strip(),
-                                new_type, new_bank.strip()
+                                int(row["id"]),
+                                new_name.strip(),
+                                new_type,
+                                new_bank.strip()
                             )
                             if ok:
                                 st.success("Account updated!")
@@ -47,17 +51,18 @@ else:
                             else:
                                 st.error("Update failed.")
 
-            # ── Delete with confirmation ───────────────────────────────────
             with col2:
                 st.markdown("**Delete account**")
                 st.warning("This cannot be undone.")
                 confirm = st.checkbox(
                     "I confirm I want to delete this account",
-                    key=f"confirm_acc_{row['id']}"
+                    key=f"confirm_acc_{idx}"
                 )
                 if st.button(
-                    "Delete account", key=f"del_acc_{row['id']}",
-                    type="primary", disabled=not confirm
+                    "Delete account",
+                    key=f"del_acc_{idx}",
+                    type="primary",
+                    disabled=not confirm
                 ):
                     ok = db.delete_account(int(row["id"]))
                     if ok:
