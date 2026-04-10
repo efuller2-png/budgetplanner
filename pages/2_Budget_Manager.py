@@ -63,12 +63,14 @@ st.divider()
  
 # ── Progress bars ─────────────────────────────────────────────────────────────
 st.subheader("This week's progress")
- 
 df = db.get_budget_vs_actual(week_id)
- 
+
 if df.empty:
     st.info("No budgets set for this week yet. Add limits above to get started.")
 else:
+    for col in ["weekly_limit", "total_spent", "remaining"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
     for _, row in df.iterrows():
         try:
             cat       = row["category"]
