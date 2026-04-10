@@ -87,7 +87,7 @@ with tab2:
         st.info("No transactions found.")
     else:
         if "amount" in df.columns:
-            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.01)
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
 
         st.markdown(f"**{len(df)} transactions found**")
 
