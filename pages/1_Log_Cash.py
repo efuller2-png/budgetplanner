@@ -93,7 +93,10 @@ with tab2:
 
         for idx, row in df.iterrows():
             amount_val = max(float(row["amount"]) if pd.notna(row["amount"]) else 0.01, 0.01)
-            row_id     = int(str(row["id"]))
+            try:
+                row_id = int(row["id"])
+            except (TypeError, ValueError):
+                row_id = idx
 
             with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
                 col1, col2, col3 = st.columns(3)
