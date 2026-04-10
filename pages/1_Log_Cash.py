@@ -1,7 +1,7 @@
 import streamlit as st
+import pandas as pd
 from datetime import date
 import database as db
-import pandas as pd
 
 st.set_page_config(page_title="Log Cash", page_icon="💵", layout="wide")
 st.title("💵 Cash Transactions")
@@ -91,9 +91,13 @@ with tab2:
     if df.empty:
         st.info("No transactions found.")
     else:
+        if "amount" in df.columns:
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+
         st.markdown(f"**{len(df)} transactions found**")
         for _, row in df.iterrows():
-            with st.expander(f"{row['date']} — {row['category']} — ${pd.to_numeric(row['amount'], errors='coerce') or 0:,.2f}"):
+            amount_val = float(row["amount"]) if pd.notna(row["amount"]) else 0.0
+            with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
                 col1, col2, col3 = st.columns(3)
                 col1.markdown(f"**City:** {row['merchant_city'] or '—'}")
                 col2.markdown(f"**State:** {row['merchant_state'] or '—'}")
@@ -106,29 +110,40 @@ with tab2:
                     with st.form(f"edit_{row['id']}"):
                         st.markdown("**Edit transaction**")
                         new_amount = st.number_input(
-                            "Amount ($)", value=float(row["amount"]),
-                            min_value=0.01, step=0.01, format="%.2f", key=f"amt_{row['id']}"
+                            "Amount ($)", value=amount_val,
+                            min_value=0.01, step=0.01, format="%.2f",
+                            key=f"amt_{row['id']}"
                         )
                         new_cat = st.selectbox(
                             "Category", db.CATEGORIES,
-                            index=db.CATEGORIES.index(row["category"]) if row["category"] in db.CATEGORIES else 0,
+                            index=db.CATEGORIES.index(row["category"])
+                            if row["category"] in db.CATEGORIES else 0,
                             key=f"cat_{row['id']}"
                         )
                         new_payment = st.selectbox(
                             "Payment method", db.PAYMENT_METHODS,
-                            index=db.PAYMENT_METHODS.index(row["payment_method"]) if row["payment_method"] in db.PAYMENT_METHODS else 0,
+                            index=db.PAYMENT_METHODS.index(row["payment_method"])
+                            if row["payment_method"] in db.PAYMENT_METHODS else 0,
                             key=f"pay_{row['id']}"
                         )
-                        new_city = st.text_input("City", value=row["merchant_city"] or "", key=f"city_{row['id']}")
-                        new_note = st.text_area("Note", value=row["note"] or "", key=f"note_{row['id']}")
+                        new_city = st.text_input(
+                            "City", value=row["merchant_city"] or "",
+                            key=f"city_{row['id']}"
+                        )
+                        new_note = st.text_area(
+                            "Note", value=row["note"] or "",
+                            key=f"note_{row['id']}"
+                        )
                         if st.form_submit_button("Save changes"):
                             if new_amount <= 0:
                                 st.error("Amount must be greater than $0.")
                             else:
                                 ok = db.update_transaction(
                                     transaction_id=int(row["id"]),
-                                    date=str(row["date"]), amount=round(new_amount, 2),
-                                    category=new_cat, payment_method=new_payment,
+                                    date=str(row["date"]),
+                                    amount=round(new_amount, 2),
+                                    category=new_cat,
+                                    payment_method=new_payment,
                                     merchant_city=new_city,
                                     merchant_state=str(row["merchant_state"] or ""),
                                     note=new_note,
@@ -142,8 +157,14 @@ with tab2:
                 with del_col:
                     st.markdown("**Delete transaction**")
                     st.warning("This cannot be undone.")
-                    confirm = st.checkbox("I confirm I want to delete this", key=f"confirm_{row['id']}")
-                    if st.button("Delete", key=f"del_{row['id']}", type="primary", disabled=not confirm):
+                    confirm = st.checkbox(
+                        "I confirm I want to delete this",
+                        key=f"confirm_{row['id']}"
+                    )
+                    if st.button(
+                        "Delete", key=f"del_{row['id']}",
+                        type="primary", disabled=not confirm
+                    ):
                         ok = db.delete_transaction(int(row["id"]))
                         if ok:
                             st.success("Deleted.")
