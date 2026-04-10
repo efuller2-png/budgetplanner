@@ -37,14 +37,10 @@ with tab1:
         else:
             acc = "" if account_id == "— none —" else account_id
             ok  = db.insert_transaction(
-                date=txn_date.strftime("%Y-%m-%d"),
-                amount=round(amount, 2),
-                category=category,
-                payment_method=payment_method,
-                merchant_city=merchant_city,
-                merchant_state=merchant_state.upper(),
-                account_id=acc,
-                note=note,
+                date=txn_date.strftime("%Y-%m-%d"), amount=round(amount, 2),
+                category=category, payment_method=payment_method,
+                merchant_city=merchant_city, merchant_state=merchant_state.upper(),
+                account_id=acc, note=note,
             )
             if ok:
                 st.success(f"✅ ${amount:,.2f} in {category} saved!")
@@ -71,7 +67,7 @@ with tab1:
             c1, c2 = st.columns([4, 1])
             c1.markdown(row["name"])
             if c2.button("Remove", key=f"deltag_{i}"):
-                db.delete_tag(int(str(row["id"])))
+                db.delete_tag(row["id"])
                 st.rerun()
 
 with tab2:
@@ -86,19 +82,12 @@ with tab2:
     if df.empty:
         st.info("No transactions found.")
     else:
-        if "amount" in df.columns:
-            df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
-
         st.markdown(f"**{len(df)} transactions found**")
-
         for idx, row in df.iterrows():
-            amount_val = max(float(row["amount"]) if pd.notna(row["amount"]) else 0.01, 0.01)
-            try:
-                row_id = int(row["id"])
-            except (TypeError, ValueError):
-                row_id = idx
+            amt = float(row["amount"]) if row["amount"] else 0.0
+            row_id = int(row["id"])
 
-            with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
+            with st.expander(f"{row['date']} — {row['category']} — ${amt:,.2f}"):
                 col1, col2, col3 = st.columns(3)
                 col1.markdown(f"**City:** {row['merchant_city'] or '—'}")
                 col2.markdown(f"**State:** {row['merchant_state'] or '—'}")
@@ -110,38 +99,26 @@ with tab2:
                 with edit_col:
                     with st.form(f"edit_txn_{idx}"):
                         st.markdown("**Edit transaction**")
+                        edit_amt = max(amt, 0.01)
                         new_amount = st.number_input(
-                            "Amount ($)",
-                            value=amount_val,
-                            min_value=0.01,
-                            step=0.01,
-                            format="%.2f",
+                            "Amount ($)", value=edit_amt,
+                            min_value=0.01, step=0.01, format="%.2f",
                             key=f"amt_{idx}"
                         )
                         new_cat = st.selectbox(
-                            "Category",
-                            db.CATEGORIES,
+                            "Category", db.CATEGORIES,
                             index=db.CATEGORIES.index(row["category"])
                             if row["category"] in db.CATEGORIES else 0,
                             key=f"cat_{idx}"
                         )
                         new_payment = st.selectbox(
-                            "Payment method",
-                            db.PAYMENT_METHODS,
+                            "Payment method", db.PAYMENT_METHODS,
                             index=db.PAYMENT_METHODS.index(row["payment_method"])
                             if row["payment_method"] in db.PAYMENT_METHODS else 0,
                             key=f"pay_{idx}"
                         )
-                        new_city = st.text_input(
-                            "City",
-                            value=row["merchant_city"] or "",
-                            key=f"city_{idx}"
-                        )
-                        new_note = st.text_area(
-                            "Note",
-                            value=row["note"] or "",
-                            key=f"note_{idx}"
-                        )
+                        new_city = st.text_input("City", value=row["merchant_city"] or "", key=f"city_{idx}")
+                        new_note = st.text_area("Note", value=row["note"] or "", key=f"note_{idx}")
                         if st.form_submit_button("Save changes"):
                             if new_amount <= 0:
                                 st.error("Amount must be greater than $0.")
@@ -165,16 +142,8 @@ with tab2:
                 with del_col:
                     st.markdown("**Delete transaction**")
                     st.warning("This cannot be undone.")
-                    confirm = st.checkbox(
-                        "I confirm I want to delete this",
-                        key=f"confirm_{idx}"
-                    )
-                    if st.button(
-                        "Delete",
-                        key=f"del_{idx}",
-                        type="primary",
-                        disabled=not confirm
-                    ):
+                    confirm = st.checkbox("I confirm I want to delete this", key=f"confirm_{idx}")
+                    if st.button("Delete", key=f"del_{idx}", type="primary", disabled=not confirm):
                         ok = db.delete_transaction(row_id)
                         if ok:
                             st.success("Deleted.")
