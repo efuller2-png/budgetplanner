@@ -11,19 +11,19 @@ tab1, tab2 = st.tabs(["Log a cash purchase", "View & manage transactions"])
 
 with tab1:
     with st.form("cash_form", clear_on_submit=True):
-        col1, col2    = st.columns(2)
-        amount        = col1.number_input("Amount ($) *", min_value=0.01, step=0.01, format="%.2f")
-        category      = col2.selectbox("Category *", db.CATEGORIES)
-        txn_date      = col1.date_input("Date *", value=date.today(), max_value=date.today())
-        payment_method= col2.selectbox("Payment method *", db.PAYMENT_METHODS)
-        merchant_city = col1.text_input("City", placeholder="e.g. Spokane")
-        merchant_state= col2.text_input("State", placeholder="e.g. WA", max_chars=2)
-        accounts      = db.get_account_names()
-        account_id    = st.selectbox("Account (optional)", ["— none —"] + accounts)
-        tag_names     = db.get_tag_names()
-        selected_tags = st.multiselect("Tags (optional)", tag_names)
-        note          = st.text_area("Note (optional)", placeholder="What was this for?")
-        submitted     = st.form_submit_button("Save transaction")
+        col1, col2     = st.columns(2)
+        amount         = col1.number_input("Amount ($) *", min_value=0.01, step=0.01, format="%.2f")
+        category       = col2.selectbox("Category *", db.CATEGORIES)
+        txn_date       = col1.date_input("Date *", value=date.today(), max_value=date.today())
+        payment_method = col2.selectbox("Payment method *", db.PAYMENT_METHODS)
+        merchant_city  = col1.text_input("City", placeholder="e.g. Spokane")
+        merchant_state = col2.text_input("State", placeholder="e.g. WA", max_chars=2)
+        accounts       = db.get_account_names()
+        account_id     = st.selectbox("Account (optional)", ["— none —"] + accounts)
+        tag_names      = db.get_tag_names()
+        selected_tags  = st.multiselect("Tags (optional)", tag_names)
+        note           = st.text_area("Note (optional)", placeholder="What was this for?")
+        submitted      = st.form_submit_button("Save transaction")
 
     if submitted:
         errors = []
@@ -87,13 +87,12 @@ with tab2:
         st.info("No transactions found.")
     else:
         if "amount" in df.columns:
-            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.01)
 
         st.markdown(f"**{len(df)} transactions found**")
 
-        for _, row in df.iterrows():
-            amount_val = float(row["amount"]) if pd.notna(row["amount"]) else 0.01
-            amount_val = max(amount_val, 0.01)
+        for idx, row in df.iterrows():
+            amount_val = max(float(row["amount"]) if pd.notna(row["amount"]) else 0.01, 0.01)
 
             with st.expander(f"{row['date']} — {row['category']} — ${amount_val:,.2f}"):
                 col1, col2, col3 = st.columns(3)
@@ -105,7 +104,7 @@ with tab2:
                 edit_col, del_col = st.columns(2)
 
                 with edit_col:
-                    with st.form(f"edit_txn_{row['id']}_{_}"):
+                    with st.form(f"edit_txn_{idx}"):
                         st.markdown("**Edit transaction**")
                         new_amount = st.number_input(
                             "Amount ($)",
@@ -113,31 +112,31 @@ with tab2:
                             min_value=0.01,
                             step=0.01,
                             format="%.2f",
-                            key=f"amt_{row['id']}"
+                            key=f"amt_{idx}"
                         )
                         new_cat = st.selectbox(
                             "Category",
                             db.CATEGORIES,
                             index=db.CATEGORIES.index(row["category"])
                             if row["category"] in db.CATEGORIES else 0,
-                            key=f"cat_{row['id']}"
+                            key=f"cat_{idx}"
                         )
                         new_payment = st.selectbox(
                             "Payment method",
                             db.PAYMENT_METHODS,
                             index=db.PAYMENT_METHODS.index(row["payment_method"])
                             if row["payment_method"] in db.PAYMENT_METHODS else 0,
-                            key=f"pay_{row['id']}"
+                            key=f"pay_{idx}"
                         )
                         new_city = st.text_input(
                             "City",
                             value=row["merchant_city"] or "",
-                            key=f"city_{row['id']}"
+                            key=f"city_{idx}"
                         )
                         new_note = st.text_area(
                             "Note",
                             value=row["note"] or "",
-                            key=f"note_{row['id']}"
+                            key=f"note_{idx}"
                         )
                         if st.form_submit_button("Save changes"):
                             if new_amount <= 0:
@@ -164,11 +163,11 @@ with tab2:
                     st.warning("This cannot be undone.")
                     confirm = st.checkbox(
                         "I confirm I want to delete this",
-                        key=f"confirm_{row['id']}"
+                        key=f"confirm_{idx}"
                     )
                     if st.button(
                         "Delete",
-                        key=f"del_{row['id']}",
+                        key=f"del_{idx}",
                         type="primary",
                         disabled=not confirm
                     ):
